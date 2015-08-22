@@ -9,7 +9,7 @@ sys.path.insert (0, CAFFE_ROOT + "python")
 
 IMAGE_ROOT = "/Users/bski/Project/caffe/server/tmp/"
 
-from flask import Flask, request
+from flask import Flask, request, Response, jsonify
 from mongokit import Connection, Document
 from StringIO import StringIO
 import caffe, numpy as np
@@ -71,36 +71,62 @@ class Classification (Document):
     ]
 
 
+
+
+
+
+
+
+
+
 @app.route("/classify")
 def classify():
-    num_outs = 5
-    image_url = request.args.get ("image_url")
-    image_file_name = IMAGE_ROOT + image_url.split("/")[-1]
-    urllib.urlretrieve (image_url, image_file_name)
-    app.logger.debug ("[classifier] image loaded to " + image_file_name)
-    image = caffe.io.load_image(image_file_name)
-    resized_image = caffe.io.resize_image (image, (256,256,3))
-    res = np.zeros (num_outs * len (classifiers)).reshape (num_outs, len(classifiers))
-    for i, x in enumerate (classifiers):
-        res[:,i] = x.predict ([resized_image])[0]
-    avg_probs = np.average (res, axis=1)
-    top_k_idx = avg_probs.argsort()[-1:-3:-1]
-    print top_k_idx
-    class_res = connection.Classification()
-    class_res['image_url'] = image_url
-    class_res['date_created'] = datetime.datetime.now()
-    class_res['top_3'] = []
-    for x in top_k_idx.tolist():
-        res_dict = {}
-        res_dict["class_name"] = labels.tolist()[x][0]
-        res_dict["prob"] = avg_probs.tolist()[x]
-        print res_dict
-        class_res['top_3'].append (res_dict)
-    #class_res['top_3']= [{"class_name": a, "prob": b} for a in avg_probs.tolist()[x] for b in labels.tolist()[x] for x in top_k_idx.tolist()]
-    class_res['top_1'] = class_res['top_3'][0]
-    class_res.save()
-    app.logger.debug ("[classifier] classification result saved." + str(class_res.to_json()))
-    return class_res.to_json()
+    try:
+        num_outs = 5
+        image_url = request.args.get ("image_url")
+        image_file_name = IMAGE_ROOT + image_url.split("/")[-1]
+        urllib.urlretrieve (image_url, image_file_name)
+        app.logger.debug ("[classifier] image loaded to " + image_file_name)
+        image = caffe.io.load_image(image_file_name)
+        resized_image = caffe.io.resize_image (image, (256,256,3))
+        res = np.zeros (num_outs * len (classifiers)).reshape (num_outs, len(classifiers))
+        for i, x in enumerate (classifiers):
+            res[:,i] = x.predict ([resized_image])[0]
+        avg_probs = np.average (res, axis=1)
+        top_k_idx = avg_probs.argsort()[-1:-4:-1]
+        class_res = connection.Classification()
+        class_res['image_url'] = image_url
+        class_res['date_created'] = datetime.datetime.now()
+        class_res['top_3'] = []
+        for x in top_k_idx.tolist():
+            res_dict = {}
+            res_dict["class_name"] = labels.tolist()[x][0]
+            res_dict["prob"] = avg_probs.tolist()[x]
+            app.logger.debug (str(res_dict) + " " + image_file_name)
+            class_res['top_3'].append (res_dict)
+        class_res['top_1'] = class_res['top_3'][0]
+        class_res.save()
+        app.logger.debug ("[classifier] classification result saved." + str(class_res.to_json()))
+        response = Response (response = class_res.to_json(), status=200, mimetype="application/json")
+        return response
+    except:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        app.logger.error (" ".join(traceback.format_tb (exc_traceback)))
+        resp = jsonify ({"msg": "Server Error"})
+        resp.status_code = 500
+        return resp
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    if not app.debug:
+        import logging
+        from logging.handlers import RotatingFileHandler
+        handler = RotatingFileHandler ("classifier_server.log", maxBytes=1024 * 20, backupCount=20)
+        handler.setFormatter (logging.Formatter (
+            '%(asctime)s %(levelname)s: %(message)s '
+            '[in %(pathname)s:%(lineno)d]'
+        ))
+        handler.setLevel (logging.WARNING)
+        app.logger.addHandler (handler)
+    app.run()
+
