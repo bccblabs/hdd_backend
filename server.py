@@ -3,12 +3,12 @@ MONGO_PORT = 27017
 #MONGO_HOST = os.environ['VEHICLE_DATA_PORT_27017_TCP_ADDR']
 #MONGO_PORT = int(os.environ['VEHICLE_DATA_PORT_27017_TCP_PORT'])
 
-CAFFE_ROOT = "/Users/bski/Project/caffe/"
+CAFFE_ROOT = "/home/ubuntu/caffe/"
 import sys
 sys.path.insert (0, CAFFE_ROOT + "python")
 
-IMAGE_ROOT = "/Users/bski/Project/caffe/server/tmp/"
-
+IMAGE_ROOT = "/tmp/"
+MODELS_ROOT = "/home/ubuntu/caffe/models/hdd/"
 from flask import Flask, request, Response, jsonify
 from mongokit import Connection, Document
 from StringIO import StringIO
@@ -22,10 +22,10 @@ connection = Connection (app.config['MONGO_HOST'], app.config['MONGO_PORT'])
 
 caffe.set_mode_cpu()
 blob = caffe.proto.caffe_pb2.BlobProto()
-data = open (CAFFE_ROOT + "data/hdd/hdd_mean.binaryproto").read()
+data = open (MODELS_ROOT + "hdd_mean.binaryproto").read()
 blob.ParseFromString(data)
 mean_rs = np.array( caffe.io.blobproto_to_array(blob) )[0].mean(1).mean(1)
-hdd_labels_file = CAFFE_ROOT + "data/hdd/labels.txt"
+hdd_labels_file = MODELS_ROOT + "hdd_6_labels.txt"
 labels = None
 
 try:
@@ -34,8 +34,10 @@ except:
     app.logger.debug("[classifier] fuck, cant load label file")
 
 c0 = caffe.Classifier (
-            CAFFE_ROOT + "data/hdd/models/f0/deploy.prototxt",
-            CAFFE_ROOT + "models/trained/gnet_freeze0_iter_50000.caffemodel",
+            MODELS_ROOT + "hdd_6_f0_deploy.prototxt",
+            #MODELS_ROOT + "hdd_ft_f2_gnet_iter_60000.caffemodel",
+            #MODELS_ROOT + "hdd_ft_f1_gnet_iter_70000.caffemodel",
+            MODELS_ROOT + "gnet_freeze0_iter_50000.caffemodel",
             mean = mean_rs,
             channel_swap = (2,1,0),
             raw_scale = 255,
@@ -71,14 +73,6 @@ class Classification (Document):
     ]
 
 
-
-
-
-
-
-
-
-
 @app.route("/classify")
 def classify():
     try:
@@ -93,7 +87,7 @@ def classify():
         for i, x in enumerate (classifiers):
             res[:,i] = x.predict ([resized_image])[0]
         avg_probs = np.average (res, axis=1)
-        top_k_idx = avg_probs.argsort()[-1:-4:-1]
+        top_k_idx = avg_probs.argsort()[-1:-6:-1]
         class_res = connection.Classification()
         class_res['image_url'] = image_url
         class_res['date_created'] = datetime.datetime.now()
@@ -128,5 +122,5 @@ if __name__ == "__main__":
         ))
         handler.setLevel (logging.WARNING)
         app.logger.addHandler (handler)
-    app.run()
+    app.run(host="0.0.0.0")
 
