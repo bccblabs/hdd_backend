@@ -100,21 +100,21 @@ class Classification (Document):
 
 @app.route("/hdd_classify", methods=['POST'])
 def hdd_classify ():
-    try:
-        image_file = request.files['file']
-        if image_file.filename.rsplit ('.', 1)[1] in ALLOWED_EXTENSIONS and '.' in image_file.filename:
-            sec_fname = secure_filename (image_file.filename)
-            image_full_path = os.path.join (app.config['UPLOAD_FOLDER'], sec_fname)
-            image_file.save (image_full_path)
-            classifier_resp = classify_image (image_full_path)
-            response = Response (response = classifier_resp.to_json(), status=201, mimetype="application/json")
-            return response
-    except:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        app.logger.error (" ".join(traceback.format_tb (exc_traceback)))
-        resp = jsonify ({"msg": "Server Error"})
-        resp.status_code = 500
-        return resp
+    # try:
+    image_file = request.files['file']
+    if image_file.filename.rsplit ('.', 1)[1] in ALLOWED_EXTENSIONS and '.' in image_file.filename:
+        sec_fname = secure_filename (image_file.filename)
+        image_full_path = os.path.join (app.config['UPLOAD_FOLDER'], sec_fname)
+        image_file.save (image_full_path)
+        classifier_resp = classify_image (image_full_path)
+        response = Response (response = classifier_resp.to_json(), status=201, mimetype="application/json")
+        return response
+    # except:
+    #     exc_type, exc_value, exc_traceback = sys.exc_info()
+    #     app.logger.error (" ".join(traceback.format_tb (exc_traceback)))
+    #     resp = jsonify ({"msg": "Server Error"})
+    #     resp.status_code = 500
+    #     return resp
 
 
 @app.route("/classify")
